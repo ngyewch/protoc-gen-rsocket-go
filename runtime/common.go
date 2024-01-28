@@ -11,7 +11,11 @@ var (
 	ErrorSelectorMismatch = fmt.Errorf("selector mismatch")
 )
 
-func HandleClientRequestResponse(ctx context.Context, selector uint64, methodName string, req proto.Message, handler func(ctx context.Context, reqWrapperBytes []byte) ([]byte, error)) ([]byte, error) {
+type ClientRequestResponseHandler func(context.Context, []byte) ([]byte, error)
+
+type ServerRequestResponseHandler func(context.Context, *RequestWrapper) (proto.Message, error)
+
+func HandleClientRequestResponse(ctx context.Context, selector uint64, methodName string, req proto.Message, handler ClientRequestResponseHandler) ([]byte, error) {
 	reqBytes, err := proto.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -30,7 +34,7 @@ func HandleClientRequestResponse(ctx context.Context, selector uint64, methodNam
 	return handler(ctx, reqWrapperBytes)
 }
 
-func HandleServerRequestResponse(ctx context.Context, reqWrapperBytes []byte, handler func(ctx context.Context, reqWrapper *RequestWrapper) (proto.Message, error)) ([]byte, error) {
+func HandleServerRequestResponse(ctx context.Context, reqWrapperBytes []byte, handler ServerRequestResponseHandler) ([]byte, error) {
 	inputBuffer := bytes.NewBuffer(reqWrapperBytes)
 	var reqWrapper RequestWrapper
 	err := reqWrapper.Unmarshal(inputBuffer)
