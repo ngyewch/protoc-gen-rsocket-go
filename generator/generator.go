@@ -64,6 +64,8 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 		asyncInterfaceFile := jen.NewFilePath(importPath)
 		syncClientFile := jen.NewFilePath(importPath)
 		syncServerFile := jen.NewFilePath(importPath)
+		asyncClientFile := jen.NewFilePath(importPath)
+		asyncServerFile := jen.NewFilePath(importPath)
 
 		for _, service := range f.Services {
 			syncInterfaceType := syncInterfaceFile.Type().Id(service.GoName)
@@ -102,6 +104,24 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 					jen.Return(jen.Op("&").Id(syncServerStructName)).Values(jen.Dict{
 						jen.Id("selector"): jen.Id("selector"),
 						jen.Id("service"):  jen.Id("service"),
+					}),
+				)
+
+			asyncClientStructName := service.GoName + "ClientAsync"
+			asyncClientFile.Type().Id(asyncClientStructName).Struct(
+				jen.Id("selector").Id("uint64"),
+				jen.Id("handler").Qual(runtimePackage, "ClientRequestResponseHandlerAsync"),
+			)
+			asyncClientFile.Func().Id("New"+asyncClientStructName).
+				Params(
+					jen.Id("selector").Id("uint64"),
+					jen.Id("handler").Qual(runtimePackage, "ClientRequestResponseHandlerAsync"),
+				).
+				Op("*").Id(asyncClientStructName).
+				Block(
+					jen.Return(jen.Op("&").Id(asyncClientStructName)).Values(jen.Dict{
+						jen.Id("selector"): jen.Id("selector"),
+						jen.Id("handler"):  jen.Id("handler"),
 					}),
 				)
 
@@ -179,6 +199,93 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 						jen.Return(
 							jen.Op("&").Id("rsp"),
 							jen.Nil(),
+						),
+					)
+
+				asyncClientFile.Func().
+					Params(
+						jen.Id("c").Op("*").Id(asyncClientStructName),
+					).
+					Id(method.GoName).
+					Params(
+						jen.Id("ctx").Qual("context", "Context"),
+						jen.Id("req").Op("*").Add(toQual(method.Input.GoIdent)),
+					).
+					Params(
+						jen.Op("*").Qual(moPackage, "Future").Types(jen.Op("*").Add(toQual(method.Output.GoIdent))),
+					).
+					Block(
+						jen.Return().Qual(moPackage, "NewFuture").Call(
+							jen.Func().
+								Params(
+									jen.Id("resolve").Func().
+										Params(
+											jen.Op("*").Add(toQual(method.Output.GoIdent)),
+										),
+									jen.Id("reject").Func().
+										Params(
+											jen.Id("error"),
+										),
+								).
+								Block(
+									jen.Qual(runtimePackage, "HandleClientRequestResponseAsync").
+										Call(
+											jen.Id("ctx"),
+											jen.Id("c").Op(".").Id("selector"),
+											jen.Lit(string(method.Desc.Name())),
+											jen.Id("req"),
+											jen.Id("c").Op(".").Id("handler"),
+										).
+										Op(".").Line().
+										Id("Catch").
+										Call(
+											jen.Func().
+												Params(
+													jen.Id("err").Id("error"),
+												).
+												Params(
+													jen.Id("[]byte"),
+													jen.Id("error"),
+												).
+												Block(
+													jen.Id("reject").Call(jen.Id("err")),
+													jen.Return(
+														jen.Nil(),
+														jen.Id("err"),
+													),
+												),
+										).
+										Op(".").Line().
+										Id("Then").
+										Call(
+											jen.Func().
+												Params(
+													jen.Id("rspBytes").Id("[]byte"),
+												).
+												Params(
+													jen.Id("[]byte"),
+													jen.Id("error"),
+												).
+												Block(
+													jen.Var().Id("rsp").Add(toQual(method.Output.GoIdent)),
+													jen.Id("err").Op(":=").Qual(protoPackage, "Unmarshal").Call(
+														jen.Id("rspBytes"),
+														jen.Op("&").Id("rsp"),
+													),
+													jen.If(jen.Id("err").Op("!=").Nil()).Block(
+														jen.Return(
+															jen.Nil(),
+															jen.Id("err"),
+														),
+													),
+													jen.Id("resolve").Call(jen.Op("&").Id("rsp")),
+													jen.Return(
+														jen.Id("rspBytes"),
+														jen.Nil(),
+													),
+												),
+										),
+								),
 						),
 					)
 
@@ -293,6 +400,22 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 				Write([]byte(fmt.Sprintf("%#v", asyncInterfaceFile)))
 			if err != nil {
 				return err
+			}
+
+			if g.options.GenerateClient {
+				_, err = gen.NewGeneratedFile(fmt.Sprintf("%s.async.client.go", f.GeneratedFilenamePrefix), f.GoImportPath).
+					Write([]byte(fmt.Sprintf("%#v", asyncClientFile)))
+				if err != nil {
+					return err
+				}
+			}
+
+			if g.options.GenerateServer {
+				_, err = gen.NewGeneratedFile(fmt.Sprintf("%s.async.server.go", f.GeneratedFilenamePrefix), f.GoImportPath).
+					Write([]byte(fmt.Sprintf("%#v", asyncServerFile)))
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
