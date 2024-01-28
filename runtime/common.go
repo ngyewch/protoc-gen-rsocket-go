@@ -3,7 +3,12 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"google.golang.org/protobuf/proto"
+)
+
+var (
+	ErrorSelectorMismatch = fmt.Errorf("selector mismatch")
 )
 
 func HandleClientRequestResponse(ctx context.Context, selector uint64, methodName string, req proto.Message, handler func(ctx context.Context, reqWrapperBytes []byte) ([]byte, error)) ([]byte, error) {
