@@ -8,8 +8,10 @@ import (
 
 func main() {
 	var flags flag.FlagSet
-	genClient := flags.Bool("gen-client", false, "Generate client")
-	genServer := flags.Bool("gen-server", false, "Generate server")
+	genClient := flags.Bool("gen-client", true, "Generate client")
+	genServer := flags.Bool("gen-server", true, "Generate server")
+	genSync := flags.Bool("gen-sync", true, "Generate sync")
+	genAsync := flags.Bool("gen-async", true, "Generate async")
 	opts := &protogen.Options{
 		ParamFunc: flags.Set,
 	}
@@ -17,6 +19,8 @@ func main() {
 		g := generator.New(generator.Options{
 			GenerateClient: *genClient,
 			GenerateServer: *genServer,
+			GenerateSync:   *genSync,
+			GenerateAsync:  *genAsync,
 		})
 		return g.Generate(plugin)
 	})

@@ -21,6 +21,8 @@ type Generator struct {
 type Options struct {
 	GenerateClient bool
 	GenerateServer bool
+	GenerateSync   bool
+	GenerateAsync  bool
 }
 
 type TemplateData struct {
@@ -262,28 +264,36 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 				)
 		}
 
-		_, err := gen.NewGeneratedFile(fmt.Sprintf("%s.sync.interface.go", f.GeneratedFilenamePrefix), f.GoImportPath).
-			Write([]byte(fmt.Sprintf("%#v", syncInterfaceFile)))
-		if err != nil {
-			return err
+		if g.options.GenerateSync {
+			_, err := gen.NewGeneratedFile(fmt.Sprintf("%s.sync.interface.go", f.GeneratedFilenamePrefix), f.GoImportPath).
+				Write([]byte(fmt.Sprintf("%#v", syncInterfaceFile)))
+			if err != nil {
+				return err
+			}
+
+			if g.options.GenerateClient {
+				_, err = gen.NewGeneratedFile(fmt.Sprintf("%s.sync.client.go", f.GeneratedFilenamePrefix), f.GoImportPath).
+					Write([]byte(fmt.Sprintf("%#v", syncClientFile)))
+				if err != nil {
+					return err
+				}
+			}
+
+			if g.options.GenerateServer {
+				_, err = gen.NewGeneratedFile(fmt.Sprintf("%s.sync.server.go", f.GeneratedFilenamePrefix), f.GoImportPath).
+					Write([]byte(fmt.Sprintf("%#v", syncServerFile)))
+				if err != nil {
+					return err
+				}
+			}
 		}
 
-		_, err = gen.NewGeneratedFile(fmt.Sprintf("%s.async.interface.go", f.GeneratedFilenamePrefix), f.GoImportPath).
-			Write([]byte(fmt.Sprintf("%#v", asyncInterfaceFile)))
-		if err != nil {
-			return err
-		}
-
-		_, err = gen.NewGeneratedFile(fmt.Sprintf("%s.sync.client.go", f.GeneratedFilenamePrefix), f.GoImportPath).
-			Write([]byte(fmt.Sprintf("%#v", syncClientFile)))
-		if err != nil {
-			return err
-		}
-
-		_, err = gen.NewGeneratedFile(fmt.Sprintf("%s.sync.server.go", f.GeneratedFilenamePrefix), f.GoImportPath).
-			Write([]byte(fmt.Sprintf("%#v", syncServerFile)))
-		if err != nil {
-			return err
+		if g.options.GenerateAsync {
+			_, err := gen.NewGeneratedFile(fmt.Sprintf("%s.async.interface.go", f.GeneratedFilenamePrefix), f.GoImportPath).
+				Write([]byte(fmt.Sprintf("%#v", asyncInterfaceFile)))
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
