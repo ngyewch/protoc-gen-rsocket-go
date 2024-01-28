@@ -18,6 +18,8 @@ type ClientRequestResponseHandlerAsync func(context.Context, []byte) *mo.Future[
 
 type ServerRequestResponseHandler func(context.Context, *RequestWrapper) (proto.Message, error)
 
+type ServerRequestResponseHandlerAsync func(context.Context, *RequestWrapper) *mo.Future[proto.Message]
+
 type Server interface {
 	HandleRequestResponse(context.Context, []byte) ([]byte, error)
 }
@@ -76,4 +78,31 @@ func HandleServerRequestResponse(ctx context.Context, reqWrapperBytes []byte, ha
 		return nil, err
 	}
 	return proto.Marshal(rsp)
+}
+
+func HandleServerRequestResponseAsync(ctx context.Context, reqWrapperBytes []byte, handler ServerRequestResponseHandlerAsync) *mo.Future[[]byte] {
+	inputBuffer := bytes.NewBuffer(reqWrapperBytes)
+	var reqWrapper RequestWrapper
+	err := reqWrapper.Unmarshal(inputBuffer)
+	if err != nil {
+		return mo.NewFuture(func(resolve func([]byte), reject func(error)) {
+			reject(err)
+		})
+	}
+	return mo.NewFuture(func(resolve func([]byte), reject func(error)) {
+		handler(ctx, &reqWrapper).
+			Then(func(rsp proto.Message) (proto.Message, error) {
+				b, err := proto.Marshal(rsp)
+				if err != nil {
+					reject(err)
+					return nil, err
+				}
+				resolve(b)
+				return rsp, nil
+			}).
+			Catch(func(err error) (proto.Message, error) {
+				reject(err)
+				return nil, err
+			})
+	})
 }
