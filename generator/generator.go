@@ -11,6 +11,7 @@ const (
 	protoPackage   = "google.golang.org/protobuf/proto"
 	runtimePackage = "github.com/ngyewch/protoc-gen-rsocket-go/runtime"
 	moPackage      = "github.com/samber/mo"
+	rsocketPackage = "github.com/rsocket/rsocket-go"
 )
 
 type Generator struct {
@@ -19,10 +20,11 @@ type Generator struct {
 }
 
 type Options struct {
-	GenerateClient bool
-	GenerateServer bool
-	GenerateSync   bool
-	GenerateAsync  bool
+	GenerateClient  bool
+	GenerateServer  bool
+	GenerateSync    bool
+	GenerateAsync   bool
+	GenerateRSocket bool
 }
 
 type TemplateData struct {
@@ -88,6 +90,20 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 						jen.Id("handler"):  jen.Id("handler"),
 					}),
 				)
+			if g.options.GenerateRSocket {
+				syncClientFile.Func().Id("NewRSocket"+syncClientStructName).
+					Params(
+						jen.Id("selector").Id("uint64"),
+						jen.Id("rs").Qual(rsocketPackage, "RSocket"),
+					).
+					Op("*").Id(syncClientStructName).
+					Block(
+						jen.Return(jen.Op("&").Id(syncClientStructName)).Values(jen.Dict{
+							jen.Id("selector"): jen.Id("selector"),
+							jen.Id("handler"):  jen.Qual(runtimePackage, "RSocketClientRequestResponseHandler").Call(jen.Id("rs")),
+						}),
+					)
+			}
 
 			syncServerStructName := service.GoName + "Server"
 			syncServerFile.Type().Id(syncServerStructName).Struct(
@@ -105,6 +121,16 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 						jen.Id("selector"): jen.Id("selector"),
 						jen.Id("service"):  jen.Id("service"),
 					}),
+				)
+			syncServerFile.Func().
+				Params(
+					jen.Id("s").Op("*").Id(syncServerStructName),
+				).
+				Id("Selector").
+				Params().
+				Id("uint64").
+				Block(
+					jen.Return(jen.Id("s").Op(".").Id("selector")),
 				)
 
 			asyncClientStructName := service.GoName + "ClientAsync"
@@ -124,6 +150,20 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 						jen.Id("handler"):  jen.Id("handler"),
 					}),
 				)
+			if g.options.GenerateRSocket {
+				asyncClientFile.Func().Id("NewRSocket"+asyncClientStructName).
+					Params(
+						jen.Id("selector").Id("uint64"),
+						jen.Id("rs").Qual(rsocketPackage, "RSocket"),
+					).
+					Op("*").Id(asyncClientStructName).
+					Block(
+						jen.Return(jen.Op("&").Id(asyncClientStructName)).Values(jen.Dict{
+							jen.Id("selector"): jen.Id("selector"),
+							jen.Id("handler"):  jen.Qual(runtimePackage, "RSocketClientRequestResponseHandlerAsync").Call(jen.Id("rs")),
+						}),
+					)
+			}
 
 			var syncInterfaceStatements []jen.Code
 			var asyncInterfaceStatements []jen.Code
@@ -333,41 +373,24 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 				Id("HandleRequestResponse").
 				Params(
 					jen.Id("ctx").Qual("context", "Context"),
-					jen.Id("reqWrapperBytes").Id("[]byte"),
+					jen.Id("reqWrapper").Op("*").Qual(runtimePackage, "RequestWrapper"),
 				).
 				Params(
-					jen.Id("[]byte"),
+					jen.Qual(protoPackage, "Message"),
 					jen.Id("error"),
 				).
 				Block(
-					jen.Return(
-						jen.Qual(runtimePackage, "HandleServerRequestResponse").Call(
-							jen.Id("ctx"),
-							jen.Id("reqWrapperBytes"),
-							jen.Func().
-								Params(
-									jen.Id("ctx").Qual("context", "Context"),
-									jen.Id("reqWrapper").Op("*").Qual(runtimePackage, "RequestWrapper"),
-								).
-								Params(
-									jen.Qual(protoPackage, "Message"),
-									jen.Id("error"),
-								).
-								Block(
-									jen.If(jen.Id("reqWrapper").Op(".").Id("Selector").Op("!=").Id("s").Op(".").Id("selector").
-										Block(
-											jen.Return(
-												jen.Nil(),
-												jen.Qual(runtimePackage, "ErrorSelectorMismatch"),
-											),
-										)),
-									jen.Switch(jen.Id("reqWrapper").Op(".").Id("MethodName").
-										Block(
-											syncServerCases...,
-										)),
-								),
-						),
-					),
+					jen.If(jen.Id("reqWrapper").Op(".").Id("Selector").Op("!=").Id("s").Op(".").Id("selector").
+						Block(
+							jen.Return(
+								jen.Nil(),
+								jen.Qual(runtimePackage, "ErrorSelectorMismatch"),
+							),
+						)),
+					jen.Switch(jen.Id("reqWrapper").Op(".").Id("MethodName").
+						Block(
+							syncServerCases...,
+						)),
 				)
 		}
 
