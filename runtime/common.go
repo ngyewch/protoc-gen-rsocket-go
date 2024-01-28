@@ -20,10 +20,6 @@ type ServerRequestResponseHandler func(context.Context, *RequestWrapper) (proto.
 
 type ServerRequestResponseHandlerAsync func(context.Context, *RequestWrapper) *mo.Future[proto.Message]
 
-type Server interface {
-	HandleRequestResponse(context.Context, []byte) ([]byte, error)
-}
-
 func HandleClientRequestResponse(ctx context.Context, selector uint64, methodName string, req proto.Message, handler ClientRequestResponseHandler) ([]byte, error) {
 	reqBytes, err := proto.Marshal(req)
 	if err != nil {
