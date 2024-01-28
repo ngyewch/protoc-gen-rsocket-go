@@ -65,9 +65,8 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 		syncInterfaceFile := jen.NewFilePath(importPath)
 		asyncInterfaceFile := jen.NewFilePath(importPath)
 		syncClientFile := jen.NewFilePath(importPath)
-		syncServerFile := jen.NewFilePath(importPath)
 		asyncClientFile := jen.NewFilePath(importPath)
-		asyncServerFile := jen.NewFilePath(importPath)
+		serverFile := jen.NewFilePath(importPath)
 
 		for _, service := range f.Services {
 			syncInterfaceType := syncInterfaceFile.Type().Id(service.GoName)
@@ -105,26 +104,26 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 					)
 			}
 
-			syncServerStructName := service.GoName + "Server"
-			syncServerFile.Type().Id(syncServerStructName).Struct(
+			serverStructName := service.GoName + "Server"
+			serverFile.Type().Id(serverStructName).Struct(
 				jen.Id("selector").Id("uint64"),
 				jen.Id("service").Id(service.GoName),
 			)
-			syncServerFile.Func().Id("New"+syncServerStructName).
+			serverFile.Func().Id("New"+serverStructName).
 				Params(
 					jen.Id("selector").Id("uint64"),
 					jen.Id("service").Id(service.GoName),
 				).
-				Op("*").Id(syncServerStructName).
+				Op("*").Id(serverStructName).
 				Block(
-					jen.Return(jen.Op("&").Id(syncServerStructName)).Values(jen.Dict{
+					jen.Return(jen.Op("&").Id(serverStructName)).Values(jen.Dict{
 						jen.Id("selector"): jen.Id("selector"),
 						jen.Id("service"):  jen.Id("service"),
 					}),
 				)
-			syncServerFile.Func().
+			serverFile.Func().
 				Params(
-					jen.Id("s").Op("*").Id(syncServerStructName),
+					jen.Id("s").Op("*").Id(serverStructName),
 				).
 				Id("Selector").
 				Params().
@@ -167,7 +166,7 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 
 			var syncInterfaceStatements []jen.Code
 			var asyncInterfaceStatements []jen.Code
-			var syncServerCases []jen.Code
+			var serverCases []jen.Code
 			for _, method := range service.Methods {
 				if method.Desc.IsStreamingClient() || method.Desc.IsStreamingServer() {
 					// TODO streaming currently not supported
@@ -329,7 +328,7 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 						),
 					)
 
-				syncServerCases = append(syncServerCases, jen.Case(jen.Lit(string(method.Desc.Name()))).
+				serverCases = append(serverCases, jen.Case(jen.Lit(string(method.Desc.Name()))).
 					Block(
 						jen.Var().Id("req").Add(toQual(method.Input.GoIdent)),
 						jen.Id("err").Op(":=").Qual(protoPackage, "Unmarshal").Call(
@@ -355,7 +354,7 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 			syncInterfaceType.Interface(syncInterfaceStatements...)
 			asyncInterfaceType.Interface(asyncInterfaceStatements...)
 
-			syncServerCases = append(syncServerCases, jen.Default().
+			serverCases = append(serverCases, jen.Default().
 				Block(
 					jen.Return(
 						jen.Nil(),
@@ -366,9 +365,9 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 					),
 				),
 			)
-			syncServerFile.Func().
+			serverFile.Func().
 				Params(
-					jen.Id("s").Op("*").Id(syncServerStructName),
+					jen.Id("s").Op("*").Id(serverStructName),
 				).
 				Id("HandleRequestResponse").
 				Params(
@@ -389,7 +388,7 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 						)),
 					jen.Switch(jen.Id("reqWrapper").Op(".").Id("MethodName").
 						Block(
-							syncServerCases...,
+							serverCases...,
 						)),
 				)
 		}
@@ -404,14 +403,6 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 			if g.options.GenerateClient {
 				_, err = gen.NewGeneratedFile(fmt.Sprintf("%s.sync.client.go", f.GeneratedFilenamePrefix), f.GoImportPath).
 					Write([]byte(fmt.Sprintf("%#v", syncClientFile)))
-				if err != nil {
-					return err
-				}
-			}
-
-			if g.options.GenerateServer {
-				_, err = gen.NewGeneratedFile(fmt.Sprintf("%s.sync.server.go", f.GeneratedFilenamePrefix), f.GoImportPath).
-					Write([]byte(fmt.Sprintf("%#v", syncServerFile)))
 				if err != nil {
 					return err
 				}
@@ -432,13 +423,13 @@ func (g *Generator) Generate(gen *protogen.Plugin) error {
 					return err
 				}
 			}
+		}
 
-			if g.options.GenerateServer {
-				_, err = gen.NewGeneratedFile(fmt.Sprintf("%s.async.server.go", f.GeneratedFilenamePrefix), f.GoImportPath).
-					Write([]byte(fmt.Sprintf("%#v", asyncServerFile)))
-				if err != nil {
-					return err
-				}
+		if g.options.GenerateServer {
+			_, err := gen.NewGeneratedFile(fmt.Sprintf("%s.server.go", f.GeneratedFilenamePrefix), f.GoImportPath).
+				Write([]byte(fmt.Sprintf("%#v", serverFile)))
+			if err != nil {
+				return err
 			}
 		}
 	}
