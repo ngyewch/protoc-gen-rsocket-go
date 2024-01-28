@@ -12,15 +12,17 @@ func main() {
 	genServer := flags.Bool("gen-server", true, "Generate server")
 	genSync := flags.Bool("gen-sync", true, "Generate sync")
 	genAsync := flags.Bool("gen-async", true, "Generate async")
+	genRSocket := flags.Bool("gen-rsocket", true, "Generate rsocket")
 	opts := &protogen.Options{
 		ParamFunc: flags.Set,
 	}
 	opts.Run(func(plugin *protogen.Plugin) error {
 		g := generator.New(generator.Options{
-			GenerateClient: *genClient,
-			GenerateServer: *genServer,
-			GenerateSync:   *genSync,
-			GenerateAsync:  *genAsync,
+			GenerateClient:  *genClient,
+			GenerateServer:  *genServer,
+			GenerateSync:    *genSync,
+			GenerateAsync:   *genAsync,
+			GenerateRSocket: *genRSocket,
 		})
 		return g.Generate(plugin)
 	})
