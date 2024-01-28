@@ -1,0 +1,74 @@
+package {{.ProtoFile.GoPackageName}}
+
+import (
+	"bufio"
+	"bytes"
+    "context"
+	"encoding/binary"
+	"google.golang.org/protobuf/proto"
+	"io"
+)
+
+func handleClientRequestResponse(ctx context.Context, selector uint64, methodName string, req proto.Message, handler func(ctx context.Context, reqWrapperBytes []byte) ([]byte, error)) ([]byte, error) {
+	reqBytes, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	outputBuffer := bytes.NewBuffer(nil)
+	err = writeRequestWrapper(outputBuffer, selector, methodName, reqBytes)
+	reqWrapperBytes := outputBuffer.Bytes()
+	return handler(ctx, reqWrapperBytes)
+}
+
+func handleServerRequestResponse(ctx context.Context, reqWrapperBytes []byte, handler func(ctx context.Context, selector uint64, methodName string, reqBytes []byte) (proto.Message, error)) ([]byte, error) {
+	inputBuffer := bytes.NewBuffer(reqWrapperBytes)
+	selector, methodName, reqBytes, err := readRequestWrapper(inputBuffer)
+	if err != nil {
+		return nil, err
+	}
+	rsp, err := handler(ctx, selector, methodName, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+	return proto.Marshal(rsp)
+}
+
+func writeRequestWrapper(w io.Writer, selector uint64, methodName string, reqBytes []byte) error {
+	outputBytes := make([]byte, 0)
+	outputBytes = binary.AppendUvarint(outputBytes, selector)
+	methodNameBytes := []byte(methodName)
+	outputBytes = binary.AppendUvarint(outputBytes, uint64(len(methodNameBytes)))
+	_, err := w.Write(outputBytes)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(methodNameBytes)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(reqBytes)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func readRequestWrapper(r io.Reader) (uint64, string, []byte, error) {
+	br := bufio.NewReader(r)
+	selector, err := binary.ReadUvarint(br)
+	if err != nil {
+		return 0, "", nil, err
+	}
+	methodNameLen, err := binary.ReadUvarint(br)
+	if err != nil {
+		return 0, "", nil, err
+	}
+	methodNameBytes := make([]byte, methodNameLen)
+	_, err = br.Read(methodNameBytes)
+	if err != nil {
+		return 0, "", nil, err
+	}
+	methodName := string(methodNameBytes)
+	reqBytes, err := io.ReadAll(br)
+	return selector, methodName, reqBytes, nil
+}
