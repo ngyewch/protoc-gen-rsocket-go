@@ -14,13 +14,10 @@ func main() {
 		ParamFunc: flags.Set,
 	}
 	opts.Run(func(plugin *protogen.Plugin) error {
-		g, err := generator.New(generator.Options{
+		g := generator.New(generator.Options{
 			GenerateClient: *genClient,
 			GenerateServer: *genServer,
 		})
-		if err != nil {
-			return err
-		}
 		return g.Generate(plugin)
 	})
 }
