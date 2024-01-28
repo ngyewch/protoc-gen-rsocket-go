@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/samber/mo"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -12,6 +13,8 @@ var (
 )
 
 type ClientRequestResponseHandler func(context.Context, []byte) ([]byte, error)
+
+type ClientRequestResponseHandlerAsync func(context.Context, []byte) *mo.Future[[]byte]
 
 type ServerRequestResponseHandler func(context.Context, *RequestWrapper) (proto.Message, error)
 
