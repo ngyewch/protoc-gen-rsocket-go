@@ -37,7 +37,7 @@ func RSocketClientRequestResponseHandlerAsync(rs rsocket.RSocket) ClientRequestR
 	}
 }
 
-func RSocketServerRequestResponseHandler(servers Servers) func(payload.Payload) mono.Mono {
+func RSocketServerRequestResponseHandler(servers *Servers) func(payload.Payload) mono.Mono {
 	return func(msg payload.Payload) mono.Mono {
 		return mono.FromFunc(func(ctx context.Context) (payload.Payload, error) {
 			rspBytes, err := servers.HandleRequestResponse(ctx, msg.Data())
