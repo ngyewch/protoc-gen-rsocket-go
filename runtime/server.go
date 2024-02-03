@@ -20,10 +20,14 @@ func NewServers(servers ...Server) *Servers {
 	s := &Servers{
 		serverMap: make(map[uint64]Server),
 	}
-	for _, server1 := range servers {
-		s.serverMap[server1.Selector()] = server1
+	for _, server := range servers {
+		s.serverMap[server.Selector()] = server
 	}
 	return s
+}
+
+func (servers *Servers) AddServer(server Server) {
+	servers.serverMap[server.Selector()] = server
 }
 
 func (servers *Servers) HandleRequestResponse(ctx context.Context, reqWrapperBytes []byte) ([]byte, error) {
