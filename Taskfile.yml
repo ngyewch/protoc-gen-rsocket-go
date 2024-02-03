@@ -1,6 +1,13 @@
 version: 3
 
 tasks:
+  build:
+    desc: Build
+    cmds:
+      - go mod download
+      - go mod tidy
+      - go build ./...
+
   dependencyUpdates:
     desc: Show dependency updates
     cmds:
