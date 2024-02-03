@@ -1,5 +1,5 @@
 golang 1.21.6
 protoc 25.2
-act 0.2.57
-task 3.33.1
+act 0.2.59
+task 3.34.1
 go:github.com/psampaz/go-mod-outdated v0.9.0
